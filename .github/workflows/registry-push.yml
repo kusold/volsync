@@ -7,7 +7,7 @@
 # This will take a continer image that was previously stored as a build artifact
 # and push it to a container registry.
 
-on:  # yamllint disable-line rule:truthy
+on:    # yamllint disable-line rule:truthy
   workflow_call:
     inputs:
       artifact-name:
@@ -31,20 +31,50 @@ on:  # yamllint disable-line rule:truthy
         description: Password for the image registry
         required: true
 
+env:
+  TMP_LOCAL_IMAGE: "local-image"
+
 jobs:
   push-to-registry:
     runs-on: ubuntu-latest
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
     steps:
-      - name: Load container artifact
-        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a  # v3.0.2
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
         with:
-          name: ${{ inputs.artifact-name }}
-          path: /tmp
+          images: |
+            ${{ inputs.image-name}}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Download containers
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a    # v3.0.2
+        with:
+          name: images
+          path: /tmp/images
 
       - name: Import container image
         run: |
-          docker load -i /tmp/${{ inputs.image-filename }}
-          docker inspect ${{ inputs.image-name }}
+          for image in /tmp/images/*.tar; do
+            docker load -i $image
+          done
+
+      - name: Push images to local registry
+        run: |
+          docker push -a ${{ env.TMP_LOCAL_IMAGE }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver-opts: network=host
 
       - name: Login to registry
         # If the registry server is specified in the image name, we use that.
@@ -54,28 +84,16 @@ jobs:
           echo "Attempting docker login to: ${REGISTRY}"
           echo "${{ secrets.registry-password }}" | docker login -u "${{ secrets.registry-username }}" --password-stdin ${REGISTRY}
 
-      # If we're on the default branch, we push to :latest
-      - name: Push to registry (as :latest)
-        if: github.ref_name == github.event.repository.default_branch
+      - name: Temp Dockerfile
         run: |
-          docker push "${{ inputs.image-name }}"
+          mkdir -p /tmp/build_ctx
+          echo "FROM ${{ env.TMP_LOCAL_IMAGE }}:latest" > /tmp/build_ctx/Dockerfile
 
-      # if we're on a non-default branch, push to that ref name
-      - name: Push to registry (branch)
-        if: github.ref_name != github.event.repository.default_branch &&
-            github.ref_type == 'branch'
-        run: |
-          TAG="${{ github.ref_name }}"
-          echo "Pushing to $TAG"
-          docker tag "${{ inputs.image-name }}" "${{ inputs.image-name }}:${TAG}"
-          docker push "${{ inputs.image-name }}:${TAG}"
-
-      # if we're on a tag, strip the leading "v" and push to that ref name
-      - name: Push to registry (tag)
-        if: github.ref_type == 'tag'
-        run: |
-          [[ "${{ github.ref_name }}" =~ ^v([0-9]+.*) ]] || exit 0
-          TAG="${BASH_REMATCH[1]}"
-          echo "Pushing to $TAG"
-          docker tag "${{ inputs.image-name }}" "${{ inputs.image-name }}:${TAG}"
-          docker push "${{ inputs.image-name }}:${TAG}"
+      - name: Push
+        uses: docker/build-push-action@v4
+        with:
+          context: /tmp/build_ctx
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          platforms: linux/amd64,linux/arm64
+          labels: ${{ steps.meta.outputs.labels }}

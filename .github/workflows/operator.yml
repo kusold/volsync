@@ -2,7 +2,7 @@
 # yamllint disable rule:line-length
 
 name: operator
-on:  # yamllint disable-line rule:truthy
+on:    # yamllint disable-line rule:truthy
   push:
     branches: ["main", "release-*"]
     tags: ["*"]
@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744  # v3.6.0
 
       - name: Install Go
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe  # v4.1.0
+        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe    # v4.1.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -122,7 +122,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Go
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe  # v4.1.0
+        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe    # v4.1.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -141,7 +141,7 @@ jobs:
         run: make test
 
       - name: Upload test coverage
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d  # v3.1.4
+        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d    # v3.1.4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./cover.out
@@ -153,22 +153,72 @@ jobs:
   build-operator:
     name: Build-operator
     runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
 
     steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Checkout source
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744  # v3.6.0
 
-      - name: Build operator container
-        run: make docker-build IMG=${OPERATOR_IMAGE}
+      - name: Prepare
+        run: |
+          platform=$(echo "${{ matrix.platform }}" | sed 's/\//-/g')
+          echo "TARFILE=${platform}.tar" >> $GITHUB_ENV
+          mkdir -p /tmp/images
 
-      - name: Export container image
-        run: docker save -o /tmp/image.tar ${OPERATOR_IMAGE}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ${{ env.OPERATOR_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and export by digest
+        id: build
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          # tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=docker,dest=/tmp/images/${{ env.TARFILE }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
 
       - name: Save container as artifact
-        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce  # v3.1.2
+        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce    # v3.1.2
         with:
           name: volsync-operator
-          path: /tmp/image.tar
+          path: /tmp/images/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v3
+        with:
+          name: digests
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
 
   build-scorecard:
     name: Build-custom-scorecard-tests
@@ -179,7 +229,7 @@ jobs:
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744  # v3.6.0
 
       - name: Install Go
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe  # v4.1.0
+        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe    # v4.1.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -202,7 +252,7 @@ jobs:
         run: docker save -o /tmp/image.tar ${CUSTOM_SCORECARD_IMAGE}
 
       - name: Save container as artifact
-        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce  # v3.1.2
+        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce    # v3.1.2
         with:
           name: volsync-custom-scorecard-tests-container
           path: /tmp/image.tar
@@ -223,7 +273,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Go
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe  # v4.1.0
+        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe    # v4.1.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -250,7 +300,7 @@ jobs:
         run: make test-krew
 
       - name: Save cli as artifact
-        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce  # v3.1.2
+        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce    # v3.1.2
         with:
           name: kubectl-volsync
           path: bin/kubectl-volsync
@@ -266,16 +316,17 @@ jobs:
         # See: https://hub.docker.com/r/kindest/node/tags?page=1&ordering=name
         # Or: skopeo list-tags docker://kindest/node
         KUBERNETES_VERSIONS:
-          - "1.20.15"  # OCP 4.7
-          - "1.21.14"  # OCP 4.8
-          - "1.22.15"  # OCP 4.9
-          - "1.23.13"  # OCP 4.10
-          - "1.24.7"   # OCP 4.11
+          - "1.20.15"    # OCP 4.7
+          - "1.21.14"    # OCP 4.8
+          - "1.22.15"    # OCP 4.9
+          - "1.23.13"    # OCP 4.10
+          - "1.24.7"     # OCP 4.11
           - "1.25.3"
           - "1.26.0"
     env:
       KUBECONFIG: /tmp/kubeconfig
       KUBERNETES_VERSION: ${{ matrix.KUBERNETES_VERSIONS }}
+      IMAGE_ARTIFACT: "/tmp/linux-amd64.tar"
     steps:
       - name: Checkout source
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744  # v3.6.0
@@ -318,14 +369,16 @@ jobs:
           MINIO_NAMESPACE=minio-tls MINIO_USE_TLS=1 ./hack/run-minio.sh
 
       - name: Load operator container artifact
-        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a  # v3.0.2
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a    # v3.0.2
         with:
           name: volsync-operator
           path: /tmp
 
       - name: Import container image into cluster
         run: |
-          docker load -i /tmp/image.tar
+          ls -al /tmp
+          docker load -i $IMAGE_ARTIFACT
+          docker images
           docker inspect ${OPERATOR_IMAGE}
           docker tag ${OPERATOR_IMAGE} ${OPERATOR_IMAGE}:ci-build
           kind load docker-image "${OPERATOR_IMAGE}:ci-build"
@@ -343,7 +396,7 @@ jobs:
               volsync-ghaction ./helm/volsync
 
       - name: Load cli artifact
-        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a  # v3.0.2
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a    # v3.0.2
         with:
           name: kubectl-volsync
           path: bin
@@ -357,8 +410,8 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1  # v4.7.0
         with:
-          python-version: '3.10'
-          cache: 'pipenv'
+          python-version: "3.10"
+          cache: "pipenv"
 
       - name: Install e2e prereqs
         run: make test-e2e-install
