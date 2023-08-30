@@ -1,6 +1,6 @@
 ####################################################################
 # Establish a common builder image for all golang-based images
-FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.20 as golang-builder
+FROM golang:1.20 as golang-builder
 # Docker buildx sets these
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG TARGETPLATFORM
