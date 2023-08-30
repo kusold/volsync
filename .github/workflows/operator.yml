@@ -194,7 +194,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          # tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platform }}
           outputs: type=docker,dest=/tmp/images/${{ env.TARFILE }}
 
@@ -386,12 +386,12 @@ jobs:
       - name: Start operator
         run: |
           helm install --create-namespace -n volsync-system \
-              --set image.tag=ci-build \
-              --set rclone.tag=ci-build \
-              --set rsync.tag=ci-build \
-              --set rsync-tls.tag=ci-build \
-              --set restic.tag=ci-build \
-              --set syncthing.tag=ci-build \
+              --set image.tag=pr$${{ github.event.number }} \
+              --set rclone.tag=pr$${{ github.event.number }} \
+              --set rsync.tag=pr$${{ github.event.number }} \
+              --set rsync-tls.tag=pr$${{ github.event.number }} \
+              --set restic.tag=pr$${{ github.event.number }} \
+              --set syncthing.tag=pr$${{ github.event.number }} \
               --wait --timeout=300s \
               volsync-ghaction ./helm/volsync
 
