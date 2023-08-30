@@ -379,19 +379,19 @@ jobs:
           ls -al /tmp
           docker load -i $IMAGE_ARTIFACT
           docker images
-          docker inspect ${OPERATOR_IMAGE}
-          docker tag ${OPERATOR_IMAGE} ${OPERATOR_IMAGE}:ci-build
+          docker inspect ${OPERATOR_IMAGE}:pr${{ github.event.number }}
+          docker tag ${OPERATOR_IMAGE}:pr${{ github.event.number }} ${OPERATOR_IMAGE}:ci-build
           kind load docker-image "${OPERATOR_IMAGE}:ci-build"
 
       - name: Start operator
         run: |
           helm install --create-namespace -n volsync-system \
-              --set image.tag=pr$${{ github.event.number }} \
-              --set rclone.tag=pr$${{ github.event.number }} \
-              --set rsync.tag=pr$${{ github.event.number }} \
-              --set rsync-tls.tag=pr$${{ github.event.number }} \
-              --set restic.tag=pr$${{ github.event.number }} \
-              --set syncthing.tag=pr$${{ github.event.number }} \
+              --set image.tag=ci-build \
+              --set rclone.tag=ci-build \
+              --set rsync.tag=ci-build \
+              --set rsync-tls.tag=ci-build \
+              --set restic.tag=ci-build \
+              --set syncthing.tag=ci-build \
               --wait --timeout=300s \
               volsync-ghaction ./helm/volsync
 
