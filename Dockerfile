@@ -1,14 +1,19 @@
-######################################################################
+####################################################################
 # Establish a common builder image for all golang-based images
-FROM golang:1.19 as golang-builder
+FROM golang:1.20 as golang-builder
+# Docker buildx sets these
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
+
 USER root
 WORKDIR /workspace
 # We don't vendor modules. Enforce that behavior
 ENV GOFLAGS=-mod=readonly
 ENV GO111MODULE=on
 ENV CGO_ENABLED=1
-ARG TARGETOS
-ARG TARGETARCH
 ENV GOOS=${TARGETOS:-linux}
 ENV GOARCH=${TARGETARCH}
 
@@ -33,8 +38,8 @@ ARG version_arg="(unknown)"
 RUN go build -a -o manager -ldflags "-X=main.volsyncVersion=${version_arg}" main.go
 
 
-######################################################################
-# Build rclone
+#######################################################################
+## Build rclone
 FROM golang-builder as rclone-builder
 
 ARG RCLONE_VERSION=v1.63.1
@@ -49,8 +54,8 @@ RUN /bin/bash -c "[[ $(git rev-list -n 1 HEAD) == ${RCLONE_GIT_HASH} ]]"
 RUN make rclone
 
 
-######################################################################
-# Build restic
+#######################################################################
+## Build restic
 FROM golang-builder as restic-builder
 
 COPY /mover-restic/restic ./restic
@@ -61,8 +66,8 @@ WORKDIR /workspace/restic
 RUN go run build.go --enable-cgo
 
 
-######################################################################
-# Build syncthing
+#######################################################################
+## Build syncthing
 FROM golang-builder as syncthing-builder
 
 ARG SYNCTHING_VERSION="v1.23.7"
@@ -100,13 +105,13 @@ RUN microdnf --refresh update -y && \
 COPY --from=manager-builder /workspace/manager /manager
 
 ##### rclone
-COPY --from=rclone-builder /workspace/rclone/rclone /usr/local/bin/rclone
+# COPY --from=rclone-builder /workspace/rclone/rclone /usr/local/bin/rclone
 COPY /mover-rclone/active.sh \
      /mover-rclone/
 RUN chmod a+rx /mover-rclone/*.sh
 
 ##### restic
-COPY --from=restic-builder /workspace/restic/restic /usr/local/bin/restic
+# COPY --from=restic-builder /workspace/restic/restic /usr/local/bin/restic
 COPY /mover-restic/entry.sh \
      /mover-restic/
 RUN chmod a+rx /mover-restic/*.sh
@@ -139,7 +144,7 @@ COPY /mover-rsync-tls/client.sh \
 RUN chmod a+rx /mover-rsync-tls/*.sh
 
 ##### syncthing
-COPY --from=syncthing-builder /workspace/syncthing/bin/syncthing /usr/local/bin/syncthing
+# COPY --from=syncthing-builder /workspace/syncthing/bin/syncthing /usr/local/bin/syncthing
 ENV SYNCTHING_DATA_TRANSFERMODE="sendreceive"
 COPY /mover-syncthing/config-template.xml \
      /mover-syncthing/

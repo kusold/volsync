@@ -16,11 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restic - New option to run a restic unlock before the backup in the next sync.
 - Restic - Allow passing through of RCLONE_ env vars from the restic secret to
   the mover job.
+- Volume Populator added for ReplicationDestinations.
 
 ### Changed
 
 - Syncthing upgraded to v1.23.7
-- Restic upgraded to v0.15.2
+- Restic upgraded to v0.16.0
 - Rclone upgraded to v1.63.1
 
 ## [0.7.1]
